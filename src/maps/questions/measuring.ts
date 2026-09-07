@@ -1,5 +1,5 @@
 import * as turf from "@turf/turf";
-import type { Feature, MultiPolygon } from "geojson";
+import type { Feature, FeatureCollection, MultiPolygon, Point } from "geojson";
 import _ from "lodash";
 import osmtogeojson from "osmtogeojson";
 import { toast } from "react-toastify";
@@ -10,9 +10,13 @@ import {
     mapGeoLocation,
     polyGeoJSON,
     trainStations,
+    useLegacyDataSources,
 } from "@/lib/context";
+import { memoizeAsync } from "@/lib/memoizeAsync";
 import {
     fetchCoastline,
+    fetchElevationRegions,
+    fetchGeodataFeatures,
     findAdminBoundary,
     findPlacesInZone,
     findPlacesSpecificInZone,
@@ -119,6 +123,21 @@ export const determineMeasuringBoundary = async (
 
     switch (question.type) {
         case "highspeed-measure-shinkansen": {
+            // Use Overpass if prepared data is unavailable.
+            if (!useLegacyDataSources.get()) {
+                try {
+                    const rail = await fetchGeodataFeatures(
+                        question.type,
+                        bBox,
+                        question.lat,
+                        question.lng,
+                    );
+                    if (rail.features?.length) return rail.features;
+                } catch {
+                    // Fall through to Overpass.
+                }
+            }
+
             const features = osmtogeojson(
                 await findPlacesInZone(
                     "[highspeed=yes]",
@@ -152,6 +171,25 @@ export const determineMeasuringBoundary = async (
             // Convert the polygon to its outline (the border)
             const outline = turf.polygonToLine(zoneInfo.boundary);
             return [outline];
+        }
+        case "body-of-water":
+        case "motorway": {
+            try {
+                const data = await fetchGeodataFeatures(
+                    question.type,
+                    bBox,
+                    question.lat,
+                    question.lng,
+                );
+                if (!data.features.length)
+                    throw new Error("No matching features found in this area.");
+                return data.features;
+            } catch (error) {
+                toast.error(
+                    `Could not resolve this question: ${error instanceof Error ? error.message : String(error)}`,
+                );
+                throw error;
+            }
         }
         case "coastline": {
             const coastline = turf.lineToPolygon(
@@ -243,6 +281,28 @@ export const determineMeasuringBoundary = async (
         case "park-full": {
             const location = question.type.split("-full")[0] as APILocations;
 
+            // Avoid Overpass limits when a complete prepared result is available.
+            if (!useLegacyDataSources.get()) {
+                try {
+                    const prepared = await fetchGeodataFeatures(
+                        location,
+                        bBox,
+                        question.lat,
+                        question.lng,
+                    );
+                    if (prepared.features?.length) {
+                        const points = turf.pointsWithinPolygon(
+                            prepared as FeatureCollection<Point>,
+                            mapGeoJSON.get()!,
+                        );
+                        if (points.features.length)
+                            return turf.combine(points).features;
+                    }
+                } catch {
+                    // Fall through to Overpass.
+                }
+            }
+
             const data = await findPlacesInZone(
                 `[${LOCATION_FIRST_TAG[location]}=${location}]`,
                 `Finding ${prettifyLocation(location, true).toLowerCase()}...`,
@@ -307,7 +367,7 @@ export const determineMeasuringBoundary = async (
     }
 };
 
-const bufferedDeterminer = _.memoize(
+const bufferedDeterminer = memoizeAsync(
     async (question: MeasuringQuestion) => {
         const placeData = await determineMeasuringBoundary(question);
 
@@ -329,7 +389,24 @@ const bufferedDeterminer = _.memoize(
                 : mapGeoLocation.get(),
             geo: (question as any).geo,
             cat: (question as any).cat,
+            // In the key so flipping the source recomputes instead of replaying.
+            legacy: useLegacyDataSources.get(),
         }),
+);
+
+const elevationRegion = memoizeAsync(
+    (question: MeasuringQuestion) =>
+        fetchElevationRegions(
+            turf.bbox(mapGeoJSON.get()!),
+            question.lat,
+            question.lng,
+        ),
+    (question) =>
+        JSON.stringify([
+            question.lat,
+            question.lng,
+            turf.bbox(mapGeoJSON.get()!),
+        ]),
 );
 
 export const adjustPerMeasuring = async (
@@ -337,6 +414,21 @@ export const adjustPerMeasuring = async (
     mapData: any,
 ) => {
     if (mapData === null) return;
+
+    if (question.type === "elevation") {
+        try {
+            const regions = await elevationRegion(question);
+            const region = question.hiderCloser
+                ? regions.higher
+                : regions.lower;
+            return region ? modifyMapData(mapData, region, true) : null;
+        } catch (error) {
+            toast.error(
+                `Could not determine elevation: ${error instanceof Error ? error.message : String(error)}`,
+            );
+            throw error;
+        }
+    }
 
     const buffer = await bufferedDeterminer(question);
 
@@ -348,6 +440,17 @@ export const adjustPerMeasuring = async (
 export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
     const $hiderMode = hiderMode.get();
     if ($hiderMode === false) {
+        return question;
+    }
+
+    if (question.type === "elevation") {
+        const { higher, lower } = await elevationRegion(question);
+        const hider = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
+        const isHigher = !!higher && turf.booleanPointInPolygon(hider, higher);
+        if (!isHigher && !(lower && turf.booleanPointInPolygon(hider, lower))) {
+            throw new Error("No elevation data at the hiding location.");
+        }
+        question.hiderCloser = isHigher;
         return question;
     }
 
@@ -466,9 +569,12 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
 
 export const measuringPlanningPolygon = async (question: MeasuringQuestion) => {
     try {
-        const buffered = await bufferedDeterminer(question);
+        const buffered =
+            question.type === "elevation"
+                ? (await elevationRegion(question)).higher
+                : await bufferedDeterminer(question);
 
-        if (buffered === false) return false;
+        if (!buffered) return false;
 
         return turf.polygonToLine(buffered);
     } catch {

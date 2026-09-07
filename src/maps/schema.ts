@@ -206,11 +206,22 @@ const baseMatchingQuestionSchema = ordinaryBaseQuestionSchema.extend({
 });
 
 const ordinaryMatchingQuestionSchema = baseMatchingQuestionSchema.extend({
+    // Keep the resolved street label when saving.
+    street: z
+        .object({
+            name: z.string(),
+            highway: z.string().nullable(),
+        })
+        .optional(),
     type: z
         .union([
             z
                 .literal("airport")
                 .describe("Commercial Airport In Zone Question"),
+            z.literal("landmass").describe("Same Landmass Question"),
+            z
+                .literal("street-or-path")
+                .describe("Same Nearest Street or Path Question"),
             z
                 .literal("major-city")
                 .describe("Major City (1,000,000+ people) In Zone Question"),
@@ -327,6 +338,11 @@ const ordinaryMeasuringQuestionSchema = baseMeasuringQuestionSchema.extend({
     type: z
         .union([
             z.literal("coastline").describe("Coastline Question"),
+            z.literal("body-of-water").describe("Body of Water Question"),
+            z.literal("motorway").describe("Motorway Question"),
+            z
+                .literal("elevation")
+                .describe("Elevation (Higher/Lower) Question"),
             z
                 .literal("airport")
                 .describe("Commercial Airport In Zone Question"),

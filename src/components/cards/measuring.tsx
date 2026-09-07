@@ -362,10 +362,14 @@ export const MeasuringQuestionComponent = ({
                     disabled={!!$hiderMode || !data.drag || $isLoading}
                 >
                     <ToggleGroupItem value="further">
-                        Hider Further
+                        {data.type === "elevation"
+                            ? "Hider Lower"
+                            : "Hider Further"}
                     </ToggleGroupItem>
                     <ToggleGroupItem value="closer">
-                        Hider Closer
+                        {data.type === "elevation"
+                            ? "Hider Higher"
+                            : "Hider Closer"}
                     </ToggleGroupItem>
                 </ToggleGroup>
             </div>

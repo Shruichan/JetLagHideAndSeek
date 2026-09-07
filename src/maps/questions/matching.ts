@@ -15,8 +15,12 @@ import {
     mapGeoJSON,
     mapGeoLocation,
     polyGeoJSON,
+    questionModified,
 } from "@/lib/context";
+import { memoizeAsync } from "@/lib/memoizeAsync";
 import {
+    fetchLandmass,
+    fetchStreetRegion,
     findAdminBoundary,
     findPlacesInZone,
     LOCATION_FIRST_TAG,
@@ -118,7 +122,7 @@ export const findMatchingPlaces = async (question: MatchingQuestion) => {
     }
 };
 
-export const determineMatchingBoundary = _.memoize(
+const matchingBoundary = memoizeAsync(
     async (question: MatchingQuestion) => {
         let boundary;
 
@@ -141,6 +145,17 @@ export const determineMatchingBoundary = _.memoize(
             }
             case "custom-zone": {
                 boundary = question.geo;
+                break;
+            }
+            case "landmass": {
+                try {
+                    boundary = await fetchLandmass(question.lat, question.lng);
+                } catch (error) {
+                    toast.error(
+                        "Could not determine the landmass at that point",
+                    );
+                    throw error;
+                }
                 break;
             }
             case "zone": {
@@ -256,6 +271,33 @@ export const determineMatchingBoundary = _.memoize(
                 : mapGeoLocation.get(),
         }),
 );
+
+export const determineMatchingBoundary = async (question: MatchingQuestion) => {
+    if (question.type !== "street-or-path") return matchingBoundary(question);
+    try {
+        const street = await fetchStreetRegion(
+            question.lat,
+            question.lng,
+            turf.bbox(mapGeoJSON.get()!),
+        );
+        if (
+            question.street?.name !== street.streetName ||
+            question.street?.highway !== street.highway
+        ) {
+            question.street = {
+                name: street.streetName,
+                highway: street.highway,
+            };
+            questionModified();
+        }
+        return street.region;
+    } catch (error) {
+        toast.error(
+            `Could not determine the nearest street: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        throw error;
+    }
+};
 
 export const adjustPerMatching = async (
     question: MatchingQuestion,

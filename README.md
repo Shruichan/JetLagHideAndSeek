@@ -162,3 +162,16 @@ A great deal of appreciation goes out to these individuals who have helped to cr
 <!-- prettier-ignore-end -->
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
+
+### Prepared geodata
+
+Elevation, body of water, motorway, landmass, and nearest street/path questions
+use the JetLag Geodata API. Existing full-area place and high-speed rail measuring
+questions try it first, then fall back to Overpass if it is unavailable or cannot
+return complete coverage. Options → “Use original Overpass data?” restores the
+original source for those existing questions and is saved with the game.
+
+The API uses jetlag.drori.dev's prepared datasets and place-selection rules, so
+results can differ from live Overpass data. Elevation and shoreline geometry are
+approximate. Set `PUBLIC_JETLAG_GEODATA_API` to use another compatible server;
+browser deployments must be allowed by that server's CORS configuration.

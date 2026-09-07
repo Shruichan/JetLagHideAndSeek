@@ -367,6 +367,28 @@ export const MatchingQuestionComponent = ({
                     disabled={!data.drag || $isLoading}
                 />
             </SidebarMenuItem>
+            {data.type === "street-or-path" &&
+                (data.street ? (
+                    <SidebarMenuItem className={MENU_ITEM_CLASSNAME}>
+                        <div className="flex flex-col items-center w-full">
+                            <span className="text-xs text-muted-foreground">
+                                Nearest street or path
+                            </span>
+                            <span className="text-sm font-semibold text-center">
+                                {data.street.name}
+                                {data.street.highway
+                                    ? ` (${data.street.highway})`
+                                    : ""}
+                            </span>
+                        </div>
+                    </SidebarMenuItem>
+                ) : (
+                    <SidebarMenuItem className={MENU_ITEM_CLASSNAME}>
+                        <span className="text-xs text-muted-foreground w-full text-center">
+                            Resolving nearest street…
+                        </span>
+                    </SidebarMenuItem>
+                ))}
             {questionSpecific}
 
             {data.type !== "custom-zone" && (
