@@ -170,8 +170,18 @@ export const Map = ({ className }: { className?: string }) => {
         }
 
         if ($hiderMode !== false) {
-            for (const question of $questions) {
-                await hiderifyQuestion(question);
+            try {
+                for (const question of $questions) {
+                    await hiderifyQuestion(question);
+                }
+            } catch (error) {
+                isLoading.set(false);
+                toast.error(
+                    error instanceof Error
+                        ? error.message
+                        : "Could not determine the hider's answer.",
+                );
+                return;
             }
 
             triggerLocalRefresh.set(Math.random()); // Refresh the question sidebar with new information but not this map
