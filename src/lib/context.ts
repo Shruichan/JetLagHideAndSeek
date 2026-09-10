@@ -256,6 +256,12 @@ export const deleteCustomPreset = (id: string) => {
     customPresets.set(customPresets.get().filter((p) => p.id !== id));
 };
 
+export const useLegacyDataSources = persistentAtom<boolean>(
+    "useLegacyDataSources",
+    false,
+    { encode: JSON.stringify, decode: JSON.parse },
+);
+
 export const hidingZone = computed(
     [
         questions,
@@ -271,6 +277,7 @@ export const hidingZone = computed(
         includeDefaultStations,
         customPresets,
         permanentOverlay,
+        useLegacyDataSources,
     ],
     (
         q,
@@ -286,6 +293,7 @@ export const hidingZone = computed(
         includeDefault,
         presets,
         $permanentOverlay,
+        $useLegacyDataSources,
     ) => {
         if (geo !== null) {
             return {
@@ -300,6 +308,7 @@ export const hidingZone = computed(
                 includeDefaultStations: includeDefault,
                 presets: structuredClone(presets),
                 permanentOverlay: $permanentOverlay,
+                useLegacyDataSources: $useLegacyDataSources,
             };
         } else {
             const $loc = structuredClone(loc);
@@ -317,6 +326,7 @@ export const hidingZone = computed(
                 includeDefaultStations: includeDefault,
                 presets: structuredClone(presets),
                 permanentOverlay: $permanentOverlay,
+                useLegacyDataSources: $useLegacyDataSources,
             };
         }
     },
