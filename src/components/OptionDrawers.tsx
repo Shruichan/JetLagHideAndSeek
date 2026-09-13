@@ -291,7 +291,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                 useCustomStations.set(geojson.useCustomStations);
             }
 
-            useLegacyDataSources.set(geojson.useLegacyDataSources === true);
+            useLegacyDataSources.set(geojson.useLegacyDataSources !== false);
 
             if (
                 geojson.customStations &&

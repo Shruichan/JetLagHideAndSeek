@@ -170,6 +170,9 @@ elevation, nearest body of water, landmass, motorways, and nearest street or pat
 The browser still calculates the answers. Airports continue to use Overpass
 because the API defines airports differently.
 
+New players use the API by default. Returning players keep Overpass and get a
+one-time prompt to switch.
+
 Existing POI and high-speed rail lookups fall back to Overpass if the API is
 unavailable. You can also select “Use original Overpass data?” in Options.
 
